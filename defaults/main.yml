@@ -1,0 +1,4 @@
+---
+# defaults file for netplan
+netplan_lib_configs: {}
+netplan_etc_configs: {}

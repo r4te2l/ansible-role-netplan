@@ -1,0 +1,61 @@
+---
+- name: "Manage Netplan /lib/netplan/*.yaml configs"
+  copy:
+    content: "{{ netplan_lib.value | from_yaml | to_nice_yaml }}"
+    backup: true
+    dest: "/lib/netplan/{{ netplan_lib.key }}.yaml"
+  loop: "{{ netplan_lib_configs | dict2items }}"
+  loop_control:
+    loop_var: netplan_lib
+  register: netplan_lib_copy
+  become: true
+
+- name: "Manage Netplan /etc/netplan/*.yaml configs"
+  copy:
+    content: "{{ netplan_etc.value | from_yaml | to_nice_yaml }}"
+    backup: true
+    dest: "/etc/netplan/{{ netplan_etc.key }}.yaml"
+  loop: "{{ netplan_etc_configs | dict2items }}"
+  loop_control:
+    loop_var: netplan_etc
+  register: netplan_etc_copy
+  become: true
+
+- name: "Apply Netplan Configuration"
+  when: netplan_lib_copy.changed or netplan_etc_copy.changed
+  block:
+    - name: "Generate Backend Configuration"
+      command: netplan generate
+      become: true
+
+  rescue:
+    - name: "Restore Netplan /lib/netplan/*.yaml backups"
+      copy:
+        dest: "{{ netplan_lib.dest }}"
+        remote_src: true
+        src: "{{ netplan_lib.backup_file }}"
+      loop: "{{ netplan_lib_copy.results }}"
+      loop_control:
+        loop_var: netplan_lib
+      when: netplan_lib.backup_file is defined
+      become: true
+
+    - name: "Restore Netplan /etc/netplan/*.yaml backups"
+      copy:
+        dest: "{{ netplan_etc.dest }}"
+        remote_src: true
+        src: "{{ netplan_etc.backup_file }}"
+      loop: "{{ netplan_etc_copy.results }}"
+      loop_control:
+        loop_var: netplan_etc
+      when: netplan_etc.backup_file is defined
+      become: true
+
+    - name: "Generate Backend Configuration"
+      command: netplan generate
+      become: true
+
+  always:
+    - name: "Apply Netplan Configuration"
+      command: netplan apply
+      become: true
